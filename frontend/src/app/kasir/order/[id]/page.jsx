@@ -17,6 +17,7 @@ export default function OrderDetailPage({ params }) {
     const [settings, setSettings] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showReceipt, setShowReceipt] = useState(false);
+    const [showPrinterCheck, setShowPrinterCheck] = useState(false);
 
     useEffect(() => {
         loadOrder();
@@ -62,8 +63,21 @@ export default function OrderDetailPage({ params }) {
         }
     };
 
-    const handlePrint = () => {
-        window.print();
+    const handlePrintClick = () => {
+        const isConfirmed = localStorage.getItem('printer_confirmed');
+        if (isConfirmed === 'true') {
+            window.print();
+        } else {
+            setShowPrinterCheck(true);
+        }
+    };
+
+    const handleConfirmPrint = () => {
+        localStorage.setItem('printer_confirmed', 'true');
+        setShowPrinterCheck(false);
+        setTimeout(() => {
+            window.print();
+        }, 300);
     };
 
     if (loading) {
@@ -101,11 +115,8 @@ export default function OrderDetailPage({ params }) {
                         <h1 className="page-title">Detail Order #{order.orderNumber}</h1>
                     </div>
                     <div className={styles.headerActions}>
-                        <button onClick={() => setShowReceipt(true)} className="btn btn-outline">
+                        <button onClick={() => setShowReceipt(true)} className="btn btn-primary">
                             🧾 Lihat Nota
-                        </button>
-                        <button onClick={handlePrint} className="btn btn-primary">
-                            🖨️ Cetak
                         </button>
                     </div>
                 </div>
@@ -289,59 +300,161 @@ export default function OrderDetailPage({ params }) {
                             </div>
                             <div className="modal-body">
                                 <div className={styles.receipt} id="printable-receipt">
-                                    <div className={styles.receiptHeader}>
-                                        {settings?.logoUrl && (
-                                            <img src={settings.logoUrl} alt="Logo" className={styles.receiptLogo} />
-                                        )}
-                                        <h2>{settings?.businessName || 'Laundry'}</h2>
-                                        <p>{settings?.address}</p>
-                                        <p>{settings?.phone}</p>
-                                    </div>
-                                    <div className={styles.receiptDivider}></div>
-                                    <div className={styles.receiptInfo}>
-                                        <div>
-                                            <span>No. Nota</span>
-                                            <strong>{order.orderNumber}</strong>
-                                        </div>
-                                        <div>
-                                            <span>Tanggal</span>
-                                            <strong>{formatDateTime(order.createdAt)}</strong>
-                                        </div>
-                                        <div>
-                                            <span>Pelanggan</span>
-                                            <strong>{order.customer.name}</strong>
-                                        </div>
-                                    </div>
-                                    <div className={styles.receiptDivider}></div>
-                                    <div className={styles.receiptItems}>
-                                        {order.items.map((item) => (
-                                            <div key={item.id} className={styles.receiptItem}>
-                                                <span>{item.service.name}</span>
-                                                <span>{parseFloat(item.quantity)} x {formatCurrency(item.price)}</span>
-                                                <span>{formatCurrency(item.subtotal)}</span>
+                                    {settings?.template === 'simple' ? (
+                                        // Simple Template
+                                        <>
+                                            <div className="text-center mb-4">
+                                                <h2 style={{ fontSize: '16px', fontWeight: 'bold' }}>{settings?.businessName || 'Laundry'}</h2>
+                                                <p style={{ fontSize: '10px' }}>{formatDateTime(order.createdAt)}</p>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <div className={styles.receiptDivider}></div>
-                                    <div className={styles.receiptTotal}>
-                                        <span>Total</span>
-                                        <strong>{formatCurrency(order.totalAmount)}</strong>
-                                    </div>
-                                    <div className={styles.receiptStatus}>
-                                        <span>Status: {getStatusLabel(order.status)}</span>
-                                        <span>Bayar: {getPaymentStatusLabel(order.paymentStatus)}</span>
-                                    </div>
-                                    <div className={styles.receiptFooter}>
-                                        <p>{settings?.footer || 'Terima kasih!'}</p>
-                                    </div>
+                                            <div style={{ borderBottom: '1px dashed #000', margin: '5px 0' }}></div>
+                                            <div style={{ fontSize: '10px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>Nota:</span>
+                                                    <span>{order.orderNumber}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>Plg:</span>
+                                                    <span>{order.customer.name}</span>
+                                                </div>
+                                                <span>Est. Selesai:</span>
+                                                <span>
+                                                    {(() => {
+                                                        // Calculate max duration
+                                                        const maxDuration = Math.max(...order.items.map(item => item.service.estimatedTime || 0));
+                                                        if (maxDuration > 0) {
+                                                            const estDate = new Date(new Date(order.createdAt).getTime() + maxDuration * 60 * 60 * 1000);
+                                                            return formatDateTime(estDate);
+                                                        }
+                                                        return '-';
+                                                    })()}
+                                                </span>
+                                            </div>
+                                            <div style={{ borderBottom: '1px dashed #000', margin: '5px 0' }}></div>
+                                            <div className={styles.receiptItems} style={{ fontSize: '10px' }}>
+                                                {order.items.map((item) => (
+                                                    <div key={item.id} style={{ marginBottom: '4px' }}>
+                                                        <div>{item.service.name}</div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                            <span>{parseFloat(item.quantity)} x {formatCurrency(item.price)}</span>
+                                                            <span>{formatCurrency(item.subtotal)}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ borderBottom: '1px dashed #000', margin: '5px 0' }}></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '12px' }}>
+                                                <span>Total:</span>
+                                                <span>{formatCurrency(order.totalAmount)}</span>
+                                            </div>
+                                            <div style={{ borderBottom: '1px dashed #000', margin: '5px 0' }}></div>
+                                            <div className="text-center mt-4">
+                                                <p style={{ fontSize: '10px' }}>{settings?.footer || 'Terima kasih!'}</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // Professional Template (Default)
+                                        <>
+                                            <div className={styles.receiptHeader}>
+                                                {settings?.logoUrl && (
+                                                    <img src={settings.logoUrl} alt="Logo" className={styles.receiptLogo} />
+                                                )}
+                                                <h2>{settings?.businessName || 'Laundry'}</h2>
+                                                <p>{settings?.address}</p>
+                                                <p>{settings?.phone}</p>
+                                            </div>
+                                            <div className={styles.receiptDivider}></div>
+                                            <div className={styles.receiptInfo}>
+                                                <div>
+                                                    <span>No. Nota</span>
+                                                    <strong>{order.orderNumber}</strong>
+                                                </div>
+                                                <div>
+                                                    <span>Tgl Masuk</span>
+                                                    <strong>{formatDateTime(order.createdAt)}</strong>
+                                                </div>
+                                                <div>
+                                                    <span>Est. Selesai</span>
+                                                    <strong>
+                                                        {(() => {
+                                                            const maxDuration = Math.max(...order.items.map(item => item.service.estimatedTime || 0));
+                                                            if (maxDuration > 0) {
+                                                                const estDate = new Date(new Date(order.createdAt).getTime() + maxDuration * 60 * 60 * 1000);
+                                                                return formatDateTime(estDate);
+                                                            }
+                                                            return '-';
+                                                        })()}
+                                                    </strong>
+                                                </div>
+                                                <div>
+                                                    <span>Pelanggan</span>
+                                                    <strong>{order.customer.name}</strong>
+                                                </div>
+                                            </div>
+                                            <div className={styles.receiptDivider}></div>
+                                            <div className={styles.receiptItems}>
+                                                {order.items.map((item) => (
+                                                    <div key={item.id} className={styles.receiptItem}>
+                                                        <span>{item.service.name}</span>
+                                                        <span>{parseFloat(item.quantity)} x {formatCurrency(item.price)}</span>
+                                                        <span>{formatCurrency(item.subtotal)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className={styles.receiptDivider}></div>
+                                            <div className={styles.receiptTotal}>
+                                                <span>Total</span>
+                                                <strong>{formatCurrency(order.totalAmount)}</strong>
+                                            </div>
+                                            <div className={styles.receiptStatus}>
+                                                <span>Status: {getStatusLabel(order.status)}</span>
+                                                <span>Bayar: {getPaymentStatusLabel(order.paymentStatus)}</span>
+                                            </div>
+                                            <div className={styles.receiptFooter}>
+                                                <p>{settings?.footer || 'Terima kasih!'}</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <div className="modal-footer">
                                 <button onClick={() => setShowReceipt(false)} className="btn btn-ghost">
                                     Tutup
                                 </button>
-                                <button onClick={handlePrint} className="btn btn-primary">
+                                <button onClick={handlePrintClick} className="btn btn-primary">
                                     🖨️ Cetak Nota
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Printer Check Modal */}
+                {showPrinterCheck && (
+                    <div className="modal-overlay">
+                        <div className="modal">
+                            <div className="modal-header">
+                                <h3 className="modal-title">🖨️ Koneksi Printer</h3>
+                                <button onClick={() => setShowPrinterCheck(false)} className="modal-close">✕</button>
+                            </div>
+                            <div className="modal-body text-center">
+                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+                                <h4 className="mb-4">Pastikan Printer Terhubung</h4>
+                                <p className="text-muted mb-6">
+                                    Sebelum mencetak, pastikan printer thermal bluetooth Anda sudah:
+                                </p>
+                                <ul style={{ textAlign: 'left', display: 'inline-block', marginBottom: '1.5rem' }}>
+                                    <li>✅ Dinyalakan</li>
+                                    <li>✅ Kertas terpasang dengan benar</li>
+                                    <li>✅ Terhubung via Bluetooth/USB</li>
+                                </ul>
+                            </div>
+                            <div className="modal-footer">
+                                <button onClick={() => setShowPrinterCheck(false)} className="btn btn-ghost">
+                                    Batal
+                                </button>
+                                <button onClick={handleConfirmPrint} className="btn btn-primary">
+                                    Ya, Sudah Terhubung
                                 </button>
                             </div>
                         </div>

@@ -241,9 +241,17 @@ export default function NewOrderPage() {
                                                 {formatCurrency(service.price)}
                                                 <small>/{service.type === 'KILOAN' ? 'kg' : 'pcs'}</small>
                                             </span>
-                                            <span className={`badge ${service.type === 'KILOAN' ? 'badge-primary' : 'badge-secondary'}`}>
-                                                {getServiceTypeLabel(service.type)}
-                                            </span>
+                                            <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                                                <span className={`badge ${service.type === 'KILOAN' ? 'badge-primary' : 'badge-secondary'}`}>
+                                                    {getServiceTypeLabel(service.type)}
+                                                </span>
+                                                {/* Estimated Time Badge */}
+                                                <span className="badge" style={{ background: '#f8f9fa', color: '#6c757d', border: '1px solid #dee2e6' }}>
+                                                    ⏱️ {service.estimatedTime >= 24
+                                                        ? `${Math.ceil(service.estimatedTime / 24)} Hari`
+                                                        : `${service.estimatedTime} Jam`}
+                                                </span>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>

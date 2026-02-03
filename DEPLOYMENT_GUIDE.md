@@ -81,8 +81,11 @@ Karena kita butuh table database dan akun default:
 
 ### Langkah 10: Konfigurasi Frontend
 1. Di bagian **Root Directory**, klik **Edit** dan pilih folder `frontend`.
-2. Buka bagian **Environment Variables**.
-3. Tambahkan variable:
+2. Pastikan **Framework Preset** terdeteksi sebagai **Next.js**. 
+   - *Jika Vercel salah mendeteksi (misal "Other"), ubah manual ke "Next.js".*
+   - *Jangan mengubah "Output Directory" (biarkan default).*
+3. Buka bagian **Environment Variables**.
+4. Tambahkan variable:
    - `NEXT_PUBLIC_API_URL`: Isi dengan URL Backend Railway Anda (contoh: `https://laundry-backend-production.up.railway.app/api`).
      *(PENTING: Jangan lupa tambah `/api` di ujungnya jika routing backend Anda menggunakan prefix `/api`)*
 
