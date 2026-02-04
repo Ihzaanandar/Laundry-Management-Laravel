@@ -54,11 +54,143 @@ export default function LaporanPage() {
     };
 
     const handleExport = (format) => {
-        if (format === 'excel') {
-            api.exportExcel(reportType, filters.startDate || filters.date, filters.endDate || filters.date);
-        } else {
-            api.exportPdf(reportType, filters.startDate || filters.date, filters.endDate || filters.date);
+        if (!data || !data.orders || data.orders.length === 0) {
+            toast.error('Tidak ada data untuk diekspor');
+            return;
         }
+
+        if (format === 'excel') {
+            exportToExcel();
+        } else {
+            exportToPdf();
+        }
+    };
+
+    const exportToExcel = () => {
+        // Create CSV content (Excel compatible)
+        const headers = ['No. Nota', 'Pelanggan', 'Total', 'Status', 'Pembayaran', 'Waktu'];
+        const rows = data.orders.map(order => [
+            order.orderNumber,
+            order.customer?.name || '-',
+            order.totalAmount,
+            getStatusLabel(order.status),
+            getPaymentStatusLabel(order.paymentStatus),
+            formatDateTime(order.createdAt)
+        ]);
+
+        // Add summary row
+        rows.push([]);
+        rows.push(['RINGKASAN']);
+        rows.push(['Total Pendapatan', formatCurrency(data.totalRevenue || 0)]);
+        rows.push(['Total Transaksi', data.totalOrders || 0]);
+        rows.push(['Transaksi Lunas', data.paidOrders || 0]);
+        rows.push(['Belum Bayar', data.unpaidOrders || 0]);
+
+        // Convert to CSV
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
+
+        // Download file
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `laporan_${reportType}_${filters.date || filters.year}.csv`;
+        link.click();
+        toast.success('File Excel berhasil diunduh');
+    };
+
+    const exportToPdf = () => {
+        // Create printable HTML
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Laporan Keuangan</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    h1 { color: #1e3a5f; border-bottom: 2px solid #e67e22; padding-bottom: 10px; }
+                    .summary { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+                    .summary-item { background: #f5f5f5; padding: 15px; border-radius: 8px; min-width: 150px; }
+                    .summary-value { font-size: 24px; font-weight: bold; color: #1e3a5f; }
+                    .summary-label { color: #666; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                    th { background: #1e3a5f; color: white; }
+                    tr:nth-child(even) { background: #f9f9f9; }
+                    .lunas { color: green; }
+                    .belum { color: orange; }
+                    .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <h1>Laporan Keuangan - ${reportType === 'daily' ? 'Harian' : reportType === 'monthly' ? 'Bulanan' : 'Tahunan'}</h1>
+                <p>Periode: ${filters.date || `${filters.month}/${filters.year}` || filters.year}</p>
+                
+                <div class="summary">
+                    <div class="summary-item">
+                        <div class="summary-value">${formatCurrency(data.totalRevenue || 0)}</div>
+                        <div class="summary-label">Total Pendapatan</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.totalOrders || 0}</div>
+                        <div class="summary-label">Total Transaksi</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.paidOrders || 0}</div>
+                        <div class="summary-label">Transaksi Lunas</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data.unpaidOrders || 0}</div>
+                        <div class="summary-label">Belum Bayar</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No. Nota</th>
+                            <th>Pelanggan</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Pembayaran</th>
+                            <th>Waktu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.orders.map(order => `
+                            <tr>
+                                <td>${order.orderNumber}</td>
+                                <td>${order.customer?.name || '-'}</td>
+                                <td>${formatCurrency(order.totalAmount)}</td>
+                                <td>${getStatusLabel(order.status)}</td>
+                                <td class="${order.paymentStatus === 'SUDAH_BAYAR' ? 'lunas' : 'belum'}">
+                                    ${getPaymentStatusLabel(order.paymentStatus)}
+                                </td>
+                                <td>${formatDateTime(order.createdAt)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+
+                <div class="footer">
+                    <p>Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
+                    <p>LaundryKu - Sistem Manajemen Laundry</p>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // Open print window
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+        }, 250);
+        toast.success('Silakan simpan sebagai PDF dari dialog print');
     };
 
     return (

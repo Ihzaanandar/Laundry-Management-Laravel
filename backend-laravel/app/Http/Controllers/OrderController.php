@@ -16,7 +16,12 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Order::with(['customer', 'user', 'items.service', 'payment']);
+        $query = Order::with([
+            'customer:id,name,phone',
+            'user:id,name,username',
+            'items.service:id,name,price,type',
+            'payment:id,orderId,amount,method'
+        ])->select('id', 'orderNumber', 'customerId', 'userId', 'status', 'paymentStatus', 'totalAmount', 'notes', 'createdAt', 'updatedAt');
 
         // Filter by status
         if ($request->has('status') && $request->status) {
@@ -39,7 +44,8 @@ class OrderController extends Controller
             });
         }
 
-        $orders = $query->orderBy('createdAt', 'desc')->get();
+        // Limit results for performance
+        $orders = $query->orderBy('createdAt', 'desc')->limit(100)->get();
         return $this->sendResponse($orders, 'Orders retrieved');
     }
 

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Cache;
 use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Service;
@@ -11,55 +11,80 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    /**
+     * Owner Dashboard with caching and optimized queries
+     */
     public function owner()
     {
-        $today = now()->startOfDay();
+        // Cache dashboard data for 1 minute to reduce database load
+        $data = Cache::remember('dashboard_owner_' . today()->format('Y-m-d'), 60, function () {
+            return $this->getOwnerDashboardData();
+        });
+
+        return $this->sendResponse($data, 'Owner dashboard data retrieved');
+    }
+
+    /**
+     * Get owner dashboard data with optimized queries
+     */
+    private function getOwnerDashboardData(): array
+    {
+        $today = today();
         $startOfMonth = now()->startOfMonth();
         $startOfYear = now()->startOfYear();
+        $sevenDaysAgo = now()->subDays(6)->startOfDay();
+        $sixMonthsAgo = now()->subMonths(5)->startOfMonth();
 
-        // Stats
-        $todayRevenue = Order::whereDate('createdAt', today())
+        // Batch query for stats using single query with conditional aggregation
+        $stats = DB::table('orders')
+            ->selectRaw('
+                SUM(CASE WHEN DATE("createdAt") = ? AND "paymentStatus" = \'SUDAH_BAYAR\' THEN "totalAmount" ELSE 0 END) as today_revenue,
+                SUM(CASE WHEN "createdAt" >= ? AND "paymentStatus" = \'SUDAH_BAYAR\' THEN "totalAmount" ELSE 0 END) as monthly_revenue,
+                SUM(CASE WHEN "createdAt" >= ? AND "paymentStatus" = \'SUDAH_BAYAR\' THEN "totalAmount" ELSE 0 END) as yearly_revenue,
+                COUNT(CASE WHEN "createdAt" >= ? THEN 1 END) as monthly_orders
+            ', [$today, $startOfMonth, $startOfYear, $startOfMonth])
+            ->first();
+
+        // Daily chart - single query instead of 7 separate queries
+        $dailyData = DB::table('orders')
+            ->selectRaw('DATE("createdAt") as date, SUM("totalAmount") as revenue')
+            ->where('createdAt', '>=', $sevenDaysAgo)
             ->where('paymentStatus', 'SUDAH_BAYAR')
-            ->sum('totalAmount');
+            ->groupByRaw('DATE("createdAt")')
+            ->pluck('revenue', 'date')
+            ->toArray();
 
-        $monthlyRevenue = Order::where('createdAt', '>=', $startOfMonth)
-            ->where('paymentStatus', 'SUDAH_BAYAR')
-            ->sum('totalAmount');
-
-        $monthlyOrders = Order::where('createdAt', '>=', $startOfMonth)->count();
-
-        $yearlyRevenue = Order::where('createdAt', '>=', $startOfYear)
-            ->where('paymentStatus', 'SUDAH_BAYAR')
-            ->sum('totalAmount');
-
-        // Charts - Daily (last 7 days)
         $dailyChart = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i);
-            $revenue = Order::whereDate('createdAt', $date)
-                ->where('paymentStatus', 'SUDAH_BAYAR')
-                ->sum('totalAmount');
+            $dateKey = $date->format('Y-m-d');
             $dailyChart[] = [
                 'day' => $date->format('D'),
-                'revenue' => (float) $revenue
+                'revenue' => (float) ($dailyData[$dateKey] ?? 0)
             ];
         }
 
-        // Charts - Monthly (last 6 months)
+        // Monthly chart - single query instead of 6 separate queries
+        $monthlyData = DB::table('orders')
+            ->selectRaw('EXTRACT(YEAR FROM "createdAt") as year, EXTRACT(MONTH FROM "createdAt") as month, SUM("totalAmount") as revenue')
+            ->where('createdAt', '>=', $sixMonthsAgo)
+            ->where('paymentStatus', 'SUDAH_BAYAR')
+            ->groupByRaw('EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")')
+            ->get()
+            ->keyBy(fn($item) => $item->year . '-' . $item->month)
+            ->toArray();
+
         $monthlyChart = [];
         for ($i = 5; $i >= 0; $i--) {
             $date = now()->subMonths($i);
-            $revenue = Order::whereYear('createdAt', $date->year)
-                ->whereMonth('createdAt', $date->month)
-                ->where('paymentStatus', 'SUDAH_BAYAR')
-                ->sum('totalAmount');
+            $key = $date->year . '-' . $date->month;
             $monthlyChart[] = [
                 'month' => $date->format('M'),
-                'revenue' => (float) $revenue
+                'revenue' => (float) ($monthlyData[$key]->revenue ?? 0)
             ];
         }
 
-        // Top Services
+        // Top Services - already optimized
         $topServices = DB::table('order_items')
             ->join('services', 'order_items.serviceId', '=', 'services.id')
             ->select('services.name', DB::raw('COUNT(*) as count'))
@@ -69,7 +94,7 @@ class DashboardController extends Controller
             ->get()
             ->toArray();
 
-        // Top Customers
+        // Top Customers - already optimized
         $topCustomers = DB::table('orders')
             ->join('customers', 'orders.customerId', '=', 'customers.id')
             ->select(
@@ -83,10 +108,13 @@ class DashboardController extends Controller
             ->get()
             ->toArray();
 
-        $data = [
-            'today' => ['revenue' => (float) $todayRevenue],
-            'monthly' => ['revenue' => (float) $monthlyRevenue, 'orders' => $monthlyOrders],
-            'yearly' => ['revenue' => (float) $yearlyRevenue],
+        return [
+            'today' => ['revenue' => (float) ($stats->today_revenue ?? 0)],
+            'monthly' => [
+                'revenue' => (float) ($stats->monthly_revenue ?? 0),
+                'orders' => (int) ($stats->monthly_orders ?? 0)
+            ],
+            'yearly' => ['revenue' => (float) ($stats->yearly_revenue ?? 0)],
             'charts' => [
                 'daily' => $dailyChart,
                 'monthly' => $monthlyChart,
@@ -94,30 +122,72 @@ class DashboardController extends Controller
             'topServices' => $topServices,
             'topCustomers' => $topCustomers,
         ];
-
-        return $this->sendResponse($data, 'Owner dashboard data retrieved');
     }
 
+    /**
+     * Kasir Dashboard with optimized queries
+     */
     public function kasir()
     {
-        $data = [
-            'today' => [
-                'orders' => Order::whereDate('createdAt', today())->count(),
-                'revenue' => Order::whereDate('createdAt', today())->where('paymentStatus', 'SUDAH_BAYAR')->sum('totalAmount'),
-            ],
-            'unpaidOrders' => Order::where('paymentStatus', 'BELUM_BAYAR')->count(),
-            'notPickedUp' => Order::whereNotIn('status', ['DIAMBIL', 'DIBATALKAN'])->count(),
-            'pendingOrders' => Order::with(['customer', 'items.service'])
-                ->whereNotIn('status', ['SELESAI', 'DIAMBIL', 'DIBATALKAN'])
-                ->orderBy('createdAt', 'desc')
-                ->take(10)
-                ->get(),
-            'recentOrders' => Order::with(['customer', 'items.service'])
-                ->whereDate('createdAt', today())
-                ->orderBy('createdAt', 'desc')
-                ->take(10)
-                ->get(),
-        ];
+        // Cache for 30 seconds since kasir needs more real-time data
+        $data = Cache::remember('dashboard_kasir_' . today()->format('Y-m-d-H-i'), 30, function () {
+            return $this->getKasirDashboardData();
+        });
+
         return $this->sendResponse($data, 'Kasir dashboard data retrieved');
+    }
+
+    /**
+     * Get kasir dashboard data with optimized queries
+     */
+    private function getKasirDashboardData(): array
+    {
+        $today = today();
+
+        // Single query for counts
+        $counts = DB::table('orders')
+            ->selectRaw('
+                COUNT(CASE WHEN DATE("createdAt") = ? THEN 1 END) as today_orders,
+                SUM(CASE WHEN DATE("createdAt") = ? AND "paymentStatus" = \'SUDAH_BAYAR\' THEN "totalAmount" ELSE 0 END) as today_revenue,
+                COUNT(CASE WHEN "paymentStatus" = \'BELUM_BAYAR\' THEN 1 END) as unpaid_orders,
+                COUNT(CASE WHEN "status" NOT IN (\'DIAMBIL\', \'DIBATALKAN\') THEN 1 END) as not_picked_up
+            ', [$today, $today])
+            ->first();
+
+        // Pending orders with eager loading and select specific columns
+        $pendingOrders = Order::with(['customer:id,name,phone', 'items.service:id,name,price'])
+            ->select('id', 'orderNumber', 'customerId', 'status', 'paymentStatus', 'totalAmount', 'createdAt')
+            ->whereNotIn('status', ['SELESAI', 'DIAMBIL', 'DIBATALKAN'])
+            ->orderBy('createdAt', 'desc')
+            ->take(10)
+            ->get();
+
+        // Recent orders with eager loading and select specific columns
+        $recentOrders = Order::with(['customer:id,name,phone', 'items.service:id,name,price'])
+            ->select('id', 'orderNumber', 'customerId', 'status', 'paymentStatus', 'totalAmount', 'createdAt')
+            ->whereDate('createdAt', $today)
+            ->orderBy('createdAt', 'desc')
+            ->take(10)
+            ->get();
+
+        return [
+            'today' => [
+                'orders' => (int) ($counts->today_orders ?? 0),
+                'revenue' => (float) ($counts->today_revenue ?? 0),
+            ],
+            'unpaidOrders' => (int) ($counts->unpaid_orders ?? 0),
+            'notPickedUp' => (int) ($counts->not_picked_up ?? 0),
+            'pendingOrders' => $pendingOrders,
+            'recentOrders' => $recentOrders,
+        ];
+    }
+
+    /**
+     * Clear dashboard cache (call after order changes)
+     */
+    public static function clearCache(): void
+    {
+        Cache::forget('dashboard_owner_' . today()->format('Y-m-d'));
+        Cache::forget('dashboard_kasir_' . today()->format('Y-m-d-H-i'));
     }
 }
