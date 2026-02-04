@@ -1,0 +1,15 @@
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+.actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.actions button {
+    padding: 0.25rem 0.5rem;
+}

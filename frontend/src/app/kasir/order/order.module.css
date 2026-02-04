@@ -20,6 +20,17 @@
     flex: 1;
 }
 
+@media (max-width: 640px) {
+    .filters {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .filters .form-group {
+        min-width: 100%;
+    }
+}
+
 .orderLink {
     color: var(--color-primary);
     font-weight: 600;

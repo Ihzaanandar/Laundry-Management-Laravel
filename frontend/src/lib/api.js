@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 class ApiClient {
     constructor() {
@@ -45,6 +45,7 @@ class ApiClient {
 
         const config = {
             headers: {
+                'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 ...(token && { Authorization: `Bearer ${token}` }),
                 ...options.headers,
@@ -148,6 +149,7 @@ class ApiClient {
     getCustomer(id) { return this.get(`/api/customers/${id}`); }
     createCustomer(data) { return this.post('/api/customers', data); }
     updateCustomer(id, data) { return this.put(`/api/customers/${id}`, data); }
+    deleteCustomer(id) { return this.delete(`/api/customers/${id}`); }
 
     // Orders
     getOrders(params = {}) {

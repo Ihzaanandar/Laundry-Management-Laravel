@@ -12,6 +12,7 @@ const STATUS_OPTIONS = ['DITERIMA', 'DICUCI', 'DIKERINGKAN', 'DISETRIKA', 'SELES
 export default function OrderListPage() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchInput, setSearchInput] = useState('');
     const [filters, setFilters] = useState({
         status: '',
         paymentStatus: '',
@@ -20,7 +21,11 @@ export default function OrderListPage() {
 
     useEffect(() => {
         loadOrders();
-    }, [filters]);
+    }, [filters.status, filters.paymentStatus, filters.search]);
+
+    const handleSearch = () => {
+        setFilters({ ...filters, search: searchInput });
+    };
 
     const loadOrders = async () => {
         try {
@@ -73,14 +78,22 @@ export default function OrderListPage() {
                 {/* Filters */}
                 <div className={`card ${styles.filterCard}`}>
                     <div className={styles.filters}>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
+                        <div className="form-group" style={{ marginBottom: 0, display: 'flex', gap: '8px' }}>
                             <input
                                 type="text"
                                 className="form-input"
                                 placeholder="🔍 Cari nota / nama pelanggan..."
-                                value={filters.search}
-                                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             />
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleSearch}
+                            >
+                                Cari
+                            </button>
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <select

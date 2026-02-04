@@ -20,6 +20,7 @@ export default function NewOrderPage() {
         customerId: '',
         customerName: '',
         customerPhone: '',
+        customerAddress: '',
         items: [],
         notes: '',
         paymentStatus: 'BELUM_BAYAR',
@@ -69,6 +70,7 @@ export default function NewOrderPage() {
             customerId: customer.id,
             customerName: customer.name,
             customerPhone: customer.phone || '',
+            customerAddress: customer.address || '',
         });
         setSearchCustomer(customer.name);
         setShowCustomerDropdown(false);
@@ -127,17 +129,24 @@ export default function NewOrderPage() {
 
         setSubmitting(true);
         try {
+            const totalAmount = calculateTotal();
+            const paidAmount = formData.paymentStatus === 'SUDAH_BAYAR' ? totalAmount : 0;
+
             const orderData = {
                 customerId: formData.customerId || undefined,
                 customerName: formData.customerId ? undefined : formData.customerName,
                 customerPhone: formData.customerId ? undefined : formData.customerPhone,
+                customerAddress: formData.customerId ? undefined : (formData.customerAddress || '-'),
                 items: formData.items.map((i) => ({
                     serviceId: i.serviceId,
                     quantity: i.quantity,
+                    price: i.price,
                 })),
                 notes: formData.notes,
-                paymentStatus: formData.paymentStatus,
-                paymentMethod: formData.paymentMethod,
+                payment: {
+                    amount: paidAmount,
+                    method: formData.paymentMethod,
+                }
             };
 
             const response = await api.createOrder(orderData);
@@ -191,15 +200,19 @@ export default function NewOrderPage() {
                                                     setSearchCustomer(e.target.value);
                                                     setFormData({ ...formData, customerId: '', customerName: e.target.value });
                                                 }}
-                                                onFocus={() => searchCustomer.length >= 2 && setShowCustomerDropdown(true)}
+                                                onFocus={() => !formData.customerId && searchCustomer.length >= 2 && setShowCustomerDropdown(true)}
+                                                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
                                             />
-                                            {showCustomerDropdown && customers.length > 0 && (
+                                            {showCustomerDropdown && customers.length > 0 && !formData.customerId && (
                                                 <div className={styles.dropdown}>
                                                     {customers.map((c) => (
                                                         <div
                                                             key={c.id}
                                                             className={styles.dropdownItem}
-                                                            onClick={() => selectCustomer(c)}
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                selectCustomer(c);
+                                                            }}
                                                         >
                                                             <span className={styles.customerName}>{c.name}</span>
                                                             {c.phone && <span className={styles.customerPhone}>{c.phone}</span>}
@@ -218,6 +231,16 @@ export default function NewOrderPage() {
                                             value={formData.customerPhone}
                                             onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                                             disabled={!!formData.customerId}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Alamat (opsional)</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="Alamat pelanggan..."
+                                            value={formData.customerAddress}
+                                            onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
                                         />
                                     </div>
                                 </div>
