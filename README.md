@@ -256,34 +256,6 @@ Form pembuatan order dengan pencarian pelanggan dan pilihan layanan.
 
 ---
 
-## 🔧 Environment Variables
-
-### Backend (.env)
-```env
-APP_NAME=LaundryKu
-APP_ENV=local
-APP_KEY=
-APP_DEBUG=true
-APP_URL=http://localhost:8000
-
-DB_CONNECTION=pgsql
-DB_HOST=your-supabase-host
-DB_PORT=5432
-DB_DATABASE=postgres
-DB_USERNAME=postgres
-DB_PASSWORD=your-password
-
-SANCTUM_STATEFUL_DOMAINS=localhost:3000
-SESSION_DOMAIN=localhost
-```
-
-### Frontend (.env.local)
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
----
-
 ## 🤝 Kontribusi
 
 Kontribusi sangat diterima! Silakan ikuti langkah berikut:
@@ -304,8 +276,8 @@ Didistribusikan di bawah Lisensi MIT. Lihat `LICENSE` untuk informasi lebih lanj
 
 ## 📞 Kontak
 
-**Developer**: Your Name  
-**Email**: your.email@example.com  
+**Developer**: Ihza Ananda Rachman & Ananda Rizki Hidayat   
+**Email**: anandarachmanihza@gmail.com
 **Project Link**: [https://github.com/username/laundryku](https://github.com/username/laundryku)
 
 ---
